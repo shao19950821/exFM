@@ -52,7 +52,7 @@ class exFM(nn.Module):
         self.metrics_names = ["loss"]
         all_parameters = self.parameters()
         structure_params = [self.linear.alpha, self.fm.beta]
-        net_params = list(filter(lambda x: x not in all_parameters, all_parameters))
+        # net_params = list(filter(lambda x: x not in all_parameters, all_parameters))
         self.structure_optim = self.get_structure_optim(structure_params)
         self.net_optim = self.get_net_optim(self.parameters())
         self.loss_func = F.binary_cross_entropy

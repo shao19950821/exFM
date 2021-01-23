@@ -24,14 +24,12 @@ if __name__ == "__main__":
     data[dense_features] = data[dense_features].fillna(0, )  # 填充缺失值
     target = ['label']
 
-    # 1.Label Encoding for sparse features,and do simple Transformation for dense features
     for feat in sparse_features:
         lbe = LabelEncoder()  # LabelEncoder 对离散数据进行标签化 字典序列 如['dog','cat','mouse'] 变为[1,0,2]
         data[feat] = lbe.fit_transform(data[feat])
     mms = MinMaxScaler(feature_range=(0, 1))  # 将连续型变量放缩到(0,1)范围
     data[dense_features] = mms.fit_transform(data[dense_features])
 
-    # 2.count #unique features for each sparse field,and record dense feature field name
 
     fixlen_feature_columns = [SparseFeat(feat, data[feat].nunique())
                               for feat in sparse_features] + [DenseFeat(feat, 1, )
