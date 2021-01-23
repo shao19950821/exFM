@@ -51,10 +51,10 @@ class exFM(nn.Module):
     def before_train(self):
         self.metrics_names = ["loss"]
         all_parameters = self.parameters()
-        structure_params = [self.linear.alpha, self.fm.beta]
-        # net_params = list(filter(lambda x: x not in all_parameters, all_parameters))
+        structure_params = set([self.linear.alpha, self.fm.beta])
+        net_params = [i for i in all_parameters if i not in structure_params]
         self.structure_optim = self.get_structure_optim(structure_params)
-        self.net_optim = self.get_net_optim(self.parameters())
+        self.net_optim = self.get_net_optim(net_params)
         self.loss_func = F.binary_cross_entropy
         self.metrics = self._get_metrics(["binary_crossentropy", "auc"])
 
