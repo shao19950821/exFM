@@ -21,12 +21,11 @@ from tqdm import tqdm
 
 
 class exFM(nn.Module):
-    def __init__(self, feature_columns, feature_index, init_std=0.0001,learning_rate = 1e-3,
+    def __init__(self, feature_columns, feature_index, init_std=0.0001,net_learning_rate = 1e-3,
                  alpha_init_mean=0.5, alpha_init_radius=0.001, beta_init_mean=0.5, beta_init_radius=0.001,
                  activation='tanh', selected_pairs=None,
-                 reduce_sum=True, seed=1024, device='cpu'):
+                 c = 0.0005,mu = 0.8,structure_learing_rate = 1e-3,reduce_sum=True, seed=1024, device='cpu'):
         super(exFM, self).__init__()
-        self.lr = learning_rate
         self.feature_index = feature_index
         self.device = device
         self.linear = NormalizedWeightedLinearLayer(feature_columns=feature_columns, feature_index=feature_index,
@@ -40,7 +39,10 @@ class exFM(nn.Module):
                                             beta_activation=activation, selected_pairs=selected_pairs,
                                             reduce_sum=reduce_sum, seed=seed,
                                             device=device)
-
+        self.net_lr = net_learning_rate  # 学习率
+        self.structure_lr = structure_learing_rate  # 学习率
+        self.c = c  # gRDA c
+        self.mu = mu  # gRDA mu
 
     def forward(self,x):
         linear_out = self.linear(x)
@@ -60,14 +62,14 @@ class exFM(nn.Module):
 
 
     def get_net_optim(self,learnable_params):
-        logging.info("init net optimizer, lr = {}".format(self.lr))
-        optimizer = optim.Adam(learnable_params, lr=float(self.lr))
+        logging.info("init net optimizer, lr = {}".format(self.net_lr))
+        optimizer = optim.Adam(learnable_params, lr=float(self.net_lr))
         logging.info("init structure optimizer finish.")
         return optimizer
 
     def get_structure_optim(self, learnable_params):
-        logging.info("init net optimizer, lr = {}".format(self.lr))
-        optimizer = gRDA(learnable_params, lr=float(self.lr))
+        logging.info("init net optimizer, lr = {}".format(self.structure_lr))
+        optimizer = gRDA(learnable_params, lr=float(self.structure_lr),c = self.c, mu = self.mu)
         logging.info("init structure optimizer finish.")
         return optimizer
 
@@ -149,6 +151,7 @@ class exFM(nn.Module):
                         net_optim.zero_grad()
                         structure_optim.zero_grad()
                         loss = loss_func(y_pred, y.squeeze(), reduction='sum')
+                        total_loss_epoch += loss.item()
                         loss.backward()
                         net_optim.step()
                         structure_optim.step()
@@ -157,14 +160,15 @@ class exFM(nn.Module):
                 raise
             t.close()
 
-        epoch_logs["loss"] = total_loss_epoch / sample_num
-        for name, result in train_result.items():
-            epoch_logs[name] = np.sum(result) / steps_per_epoch
+            # Add epoch_logs
+            epoch_logs["loss"] = total_loss_epoch / sample_num
+            for name, result in train_result.items():
+                epoch_logs[name] = np.sum(result) / steps_per_epoch
 
-        if do_validation:
-            eval_result = self.evaluate(val_x, val_y, batch_size)
-            for name, result in eval_result.items():
-                epoch_logs["val_" + name] = result
+            if do_validation:
+                eval_result = self.evaluate(val_x, val_y, batch_size)
+                for name, result in eval_result.items():
+                    epoch_logs["val_" + name] = result
 
     def evaluate(self, x, y, batch_size=256):
         pred_ans = self.predict(x, batch_size)
@@ -215,3 +219,7 @@ class exFM(nn.Module):
             logging.debug("pair {} => importance score {}".format(pair, score))
             feature_interaction_score[pair] = score
         return feature_interaction_score
+
+    # 训练后输出权重
+    def afterTrain(self):
+        self.get_fmlayer_feature_interaction_score()

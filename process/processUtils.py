@@ -34,9 +34,7 @@ def get_feature_names(feature_columns):
     return list(features.keys())
 
 
-"""Return OrderedDict: {feature_name:(start, start+dimension)}"""
-
-
+#Return OrderedDict: {feature_name:(start, start+dimension)}
 def build_input_features(feature_columns):
     features = OrderedDict()
 
