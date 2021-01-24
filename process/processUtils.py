@@ -29,12 +29,21 @@ def create_embedding_matrix(feature_columns, init_std=0.0001, linear=False, spar
 
     return embedding_dict.to(device)
 
+
+def create_structure_param(length, init_mean, init_radius, device='cpu'):
+    structure_param = nn.Parameter(
+        torch.empty(length).uniform_(
+            init_mean - init_radius,
+            init_mean + init_radius).to(device))
+    structure_param.requires_grad = True
+    return structure_param
+
 def get_feature_names(feature_columns):
     features = build_input_features(feature_columns)
     return list(features.keys())
 
 
-#Return OrderedDict: {feature_name:(start, start+dimension)}
+# Return OrderedDict: {feature_name:(start, start+dimension)}
 def build_input_features(feature_columns):
     features = OrderedDict()
 
@@ -111,8 +120,8 @@ def combined_input(sparse_embedding_list, dense_value_list):
     else:
         raise NotImplementedError
 
-def slice_arrays(arrays, start=None, stop=None):
 
+def slice_arrays(arrays, start=None, stop=None):
     if arrays is None:
         return [None]
 
@@ -141,4 +150,3 @@ def slice_arrays(arrays, start=None, stop=None):
             return arrays[start:stop]
         else:
             return [None]
-

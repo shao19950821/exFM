@@ -7,7 +7,7 @@
 import torch
 import torch.nn as nn
 from .linear import LinearLayer, NormalizedWeightedLinearLayer
-from process.processUtils import build_input_features, create_embedding_matrix, combined_input, generate_pair_index
+from process.processUtils import *
 from process.feature import SparseFeat, DenseFeat
 
 
@@ -65,7 +65,8 @@ class NormalizedWeightedFMLayer(torch.nn.Module):
             feature_columns) else []
         self.feature_index = feature_index
         self.inputdim = len(self.sparse_feat_columns) + len(self.dense_feat_columns)
-        self.register_buffer('pair_indexes', torch.tensor(generate_pair_index(self.inputdim, 2, selected_pairs)))
+        self.register_buffer('pair_indexes',
+                             torch.tensor(generate_pair_index(self.inputdim, 2, selected_pairs)).to(device))
         interaction_pair_number = len(self.pair_indexes[0])
 
         # embedding 矩阵
@@ -76,11 +77,9 @@ class NormalizedWeightedFMLayer(torch.nn.Module):
             self.weight = nn.Parameter(torch.Tensor(sum(fc.dimension for fc in self.dense_feat_columns), 1).to(device))
             torch.nn.init.normal_(self.weight, mean=0, std=init_std)
 
-        self.beta = torch.nn.Parameter(
-            torch.empty(interaction_pair_number).uniform_(
-                beta_init_mean - beta_init_radius,
-                beta_init_mean + beta_init_radius),
-            requires_grad=True)
+        self.beta = create_structure_param(
+            interaction_pair_number, beta_init_mean,
+            beta_init_radius, device)
         self.activate = nn.Tanh() if beta_activation == 'tanh' else nn.Identity()
         self.batch_norm = torch.nn.BatchNorm1d(interaction_pair_number, affine=False, momentum=0.01, eps=1e-3)
 
@@ -88,14 +87,14 @@ class NormalizedWeightedFMLayer(torch.nn.Module):
         sparse_embedding_list = [self.embedding_dict[feat.embedding_name](
             X[:, self.feature_index[feat.name][0]:self.feature_index[feat.name][1]].long()) for feat in
             self.sparse_feat_columns]
-        sparse_embedding_tensor = torch.cat(sparse_embedding_list,dim = 1)
+        sparse_embedding_tensor = torch.cat(sparse_embedding_list, dim=1)
 
         dense_value_list = [X[:, self.feature_index[feat.name][0]:self.feature_index[feat.name][1]] for feat in
                             self.dense_feat_columns]
 
         weight_dense = torch.cat(dense_value_list, dim=1).unsqueeze(2) * (self.weight)
-        weight_dense_padding_tensor = weight_dense.expand(weight_dense.shape[0],weight_dense.shape[1], 4)
-        embed_matrix = torch.cat([sparse_embedding_tensor,weight_dense_padding_tensor],dim = 1)
+        weight_dense_padding_tensor = weight_dense.expand(weight_dense.shape[0], weight_dense.shape[1], 4)
+        embed_matrix = torch.cat([sparse_embedding_tensor, weight_dense_padding_tensor], dim=1)
         feat_i, feat_j = self.pair_indexes
         embed_i = torch.index_select(embed_matrix, 1, feat_i)
         embed_j = torch.index_select(embed_matrix, 1, feat_j)
