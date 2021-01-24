@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="shaoqixiang@222.195.93.60:1641" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="RunlongYu@222.195.93.60:1609" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
+      <paths name="RunlongYu@222.195.93.60:1609">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/RunlongYu/project/exFM" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="shaoqixiang@222.195.93.60:1641">
         <serverdata>
           <mappings>

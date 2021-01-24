@@ -18,6 +18,7 @@ from .fm import NormalizedWeightedFMLayer
 from .linear import NormalizedWeightedLinearLayer
 from process.processUtils import slice_arrays
 from tqdm import tqdm
+import time
 
 
 class exFM(nn.Module):
@@ -139,6 +140,7 @@ class exFM(nn.Module):
         print("Train on {0} samples, validate on {1} samples, {2} steps per epoch".format(
             len(train_tensor_data), len(val_y), steps_per_epoch))
         for epoch in range(initial_epoch, epochs):
+            start_time = time.time()
             epoch_logs = {}
             total_loss_epoch = 0
             train_result = {}
@@ -155,6 +157,11 @@ class exFM(nn.Module):
                         loss.backward()
                         net_optim.step()
                         structure_optim.step()
+                        for name, metric_fun in self.metrics.items():
+                            if name not in train_result:
+                                train_result[name] = []
+                            train_result[name].append(metric_fun(
+                                y.cpu().data.numpy(), y_pred.cpu().data.numpy().astype("float64")))
             except KeyboardInterrupt:
                 t.close()
                 raise
@@ -169,6 +176,22 @@ class exFM(nn.Module):
                 eval_result = self.evaluate(val_x, val_y, batch_size)
                 for name, result in eval_result.items():
                     epoch_logs["val_" + name] = result
+
+            epoch_time = int(time.time() - start_time)
+            print('Epoch {0}/{1}'.format(epoch + 1, epochs))
+
+            eval_str = "{0}s - loss: {1: .4f}".format(
+                epoch_time, epoch_logs["loss"])
+
+            for name in self.metrics:
+                eval_str += " - " + name + \
+                            ": {0: .4f}".format(epoch_logs[name])
+
+            if do_validation:
+                for name in self.metrics:
+                    eval_str += " - " + "val_" + name + \
+                                ": {0: .4f}".format(epoch_logs["val_" + name])
+            print(eval_str)
 
     def evaluate(self, x, y, batch_size=256):
         pred_ans = self.predict(x, batch_size)
