@@ -6,8 +6,8 @@
 
 exFM_config = {
     'general':{
-        'batch_size':32,
-        'epochs':30,
+        'batch_size':256,
+        'epochs':1,
         'validation_split':0.2
     },
     'exFm': {

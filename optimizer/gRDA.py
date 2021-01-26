@@ -83,12 +83,9 @@ class gRDA(Optimizer):
                     l1_accumulation = param_state['l1_accumulation']
                 iter_num.add_(1)
                 accumulator.data.add_(-lr, d_p)
-
-                # l1 = c * torch.pow(torch.tensor(lr), 0.5 + mu) * torch.pow(iter_num, mu)
                 l1_diff = c * torch.pow(torch.tensor(lr), mu + 0.5) * torch.pow(iter_num, mu) - c * torch.pow(
                     torch.tensor(lr), mu + 0.5) * torch.pow(iter_num - 1, mu)
                 l1_accumulation += l1_diff
-
                 new_a_l1 = torch.abs(accumulator.data) - l1_accumulation.to(p.device)
                 p.data = torch.sign(accumulator.data) * new_a_l1.clamp(min=0)
 

@@ -7,7 +7,7 @@
 import torch
 import torch.nn as nn
 from process.feature import *
-from process.processUtils import *
+from process.processUtils import create_embedding_matrix,create_structure_param
 
 
 class LinearLayer(nn.Module):
@@ -55,6 +55,7 @@ class NormalizedWeightedLinearLayer(nn.Module):
     def __init__(self, feature_columns, feature_index, init_std=0.0001, alpha_init_mean=0.5, alpha_init_radius=0.001,
                  alpha_activation='tanh', device='cpu', ):
         super(NormalizedWeightedLinearLayer, self).__init__()
+        self.feature_columns = feature_columns
         self.feature_index = feature_index
         self.sparse_feat_columns = list(filter(lambda x: isinstance(x, SparseFeat), feature_columns)) if len(
             feature_columns) else []
@@ -65,8 +66,6 @@ class NormalizedWeightedLinearLayer(nn.Module):
         self.alpha = create_structure_param(
             len(self.sparse_feat_columns) + sum(fc.dimension for fc in self.dense_feat_columns), alpha_init_mean,
             alpha_init_radius, device)
-
-
         if len(self.dense_feat_columns) > 0:
             self.weight = nn.Parameter(torch.Tensor(sum(fc.dimension for fc in self.dense_feat_columns), 1).to(device))
             torch.nn.init.normal_(self.weight, mean=0, std=init_std)

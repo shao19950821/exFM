@@ -22,10 +22,10 @@ import time
 
 
 class exFM(nn.Module):
-    def __init__(self, feature_columns, feature_index, init_std=0.0001,net_learning_rate = 1e-3,
+    def __init__(self, feature_columns, feature_index, init_std=0.0001, net_learning_rate=1e-3,
                  alpha_init_mean=0.5, alpha_init_radius=0.001, beta_init_mean=0.5, beta_init_radius=0.001,
                  activation='tanh', selected_pairs=None,
-                 c = 0.0005,mu = 0.8,structure_learing_rate = 1e-3,reduce_sum=True, seed=1024, device='cpu'):
+                 c=0.0005, mu=0.8, structure_learing_rate=1e-3, reduce_sum=True, seed=1024, device='cpu'):
         super(exFM, self).__init__()
         self.feature_index = feature_index
         self.device = device
@@ -45,7 +45,7 @@ class exFM(nn.Module):
         self.c = c  # gRDA c
         self.mu = mu  # gRDA mu
 
-    def forward(self,x):
+    def forward(self, x):
         linear_out = self.linear(x)
         fm_out = self.fm(x)
         out = linear_out + fm_out
@@ -61,19 +61,17 @@ class exFM(nn.Module):
         self.loss_func = F.binary_cross_entropy
         self.metrics = self._get_metrics(["binary_crossentropy", "auc"])
 
-
-    def get_net_optim(self,learnable_params):
+    def get_net_optim(self, learnable_params):
         logging.info("init net optimizer, lr = {}".format(self.net_lr))
         optimizer = optim.Adam(learnable_params, lr=float(self.net_lr))
         logging.info("init structure optimizer finish.")
         return optimizer
 
     def get_structure_optim(self, learnable_params):
-        logging.info("init net optimizer, lr = {}".format(self.structure_lr))
-        optimizer = gRDA(learnable_params, lr=float(self.structure_lr),c = self.c, mu = self.mu)
+        logging.info("init structure optimizer, lr = {}, c = {}, mu = {}".format(self.structure_lr, self.c, self.mu))
+        optimizer = gRDA(learnable_params, lr=float(self.structure_lr), c=self.c, mu=self.mu)
         logging.info("init structure optimizer finish.")
         return optimizer
-
 
     def _get_metrics(self, metrics, set_eps=False):
         metrics_ = {}
@@ -98,9 +96,7 @@ class exFM(nn.Module):
             shuffle=True):
         if isinstance(x, dict):
             x = [x[feature] for feature in self.feature_index]
-
         do_validation = False
-
         if validation_split and 0. < validation_split < 1.:
             do_validation = True
             if hasattr(x[0], 'shape'):
@@ -111,7 +107,6 @@ class exFM(nn.Module):
                         slice_arrays(x, split_at))
             y, val_y = (slice_arrays(y, 0, split_at),
                         slice_arrays(y, split_at))
-
         else:
             val_x = []
             val_y = []
@@ -201,14 +196,12 @@ class exFM(nn.Module):
         return eval_result
 
     def predict(self, x, batch_size=256):
-
         model = self.eval()
         if isinstance(x, dict):
             x = [x[feature] for feature in self.feature_index]
         for i in range(len(x)):
             if len(x[i].shape) == 1:
                 x[i] = np.expand_dims(x[i], axis=1)
-
         tensor_data = Data.TensorDataset(
             torch.from_numpy(np.concatenate(x, axis=-1)))
         test_loader = DataLoader(
@@ -224,25 +217,27 @@ class exFM(nn.Module):
 
         return np.concatenate(pred_ans).astype("float64")
 
-
     def get_linearlayer_feature_interaction_score(self):
-        feature_interaction_score = {}
-        feat_i, feat_j = self.fm.pair_indexes.tolist()
-        for idx, pair in enumerate(zip(feat_i, feat_j)):
-            score = self.fm.beta[idx].item()
-            logging.debug("pair {} => importance score {}".format(pair, score))
-            feature_interaction_score[pair] = score
-        return feature_interaction_score
+        linear_interaction_score = {}
+        for idx, feature in enumerate(self.linear.feature_columns):
+            name = feature.name
+            score = self.linear.alpha[idx].item()
+            logging.info("feature {} => importance score {}".format(name, score))
+            linear_interaction_score[name] = score
+        return linear_interaction_score
 
     def get_fmlayer_feature_interaction_score(self):
         feature_interaction_score = {}
         feat_i, feat_j = self.fm.pair_indexes.tolist()
-        for idx, pair in enumerate(zip(feat_i, feat_j)):
+        feat_name_i = [self.fm.feature_columns[i].name for i in feat_i]
+        feat_name_j = [self.fm.feature_columns[j].name for j in feat_j]
+        for idx, pair in enumerate(zip(feat_name_i, feat_name_j)):
             score = self.fm.beta[idx].item()
-            logging.debug("pair {} => importance score {}".format(pair, score))
+            logging.info("pair {} => importance score {}".format(pair, score))
             feature_interaction_score[pair] = score
         return feature_interaction_score
 
     # 训练后输出权重
     def afterTrain(self):
+        self.get_linearlayer_feature_interaction_score()
         self.get_fmlayer_feature_interaction_score()

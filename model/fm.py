@@ -6,8 +6,8 @@
 
 import torch
 import torch.nn as nn
-from .linear import LinearLayer, NormalizedWeightedLinearLayer
-from process.processUtils import *
+from .linear import LinearLayer
+from process.processUtils import build_input_features,create_embedding_matrix,combined_input,create_structure_param,generate_pair_index
 from process.feature import SparseFeat, DenseFeat
 
 
@@ -19,16 +19,12 @@ class FactorizationMachineLayer(nn.Module):
             feature_columns) else []
         self.dense_feat_columns = list(filter(lambda x: isinstance(x, DenseFeat), feature_columns)) if len(
             feature_columns) else []
-
         self.feature_index = build_input_features(feature_columns)
-
         # 线性部分
         self.linear = LinearLayer(feature_columns, self.feature_index, device=device)
-
         # embedding 矩阵
         self.embedding_dict = create_embedding_matrix(feature_columns, init_std, sparse=False,
                                                       device=device)
-
         # dense 部分对应权重
         if len(self.dense_feat_columns) > 0:
             self.weight = nn.Parameter(torch.Tensor(sum(fc.dimension for fc in self.dense_feat_columns), 1).to(device))
@@ -57,6 +53,7 @@ class NormalizedWeightedFMLayer(torch.nn.Module):
                  beta_activation='tanh', selected_pairs=None,
                  reduce_sum=True, seed=1024, device='cpu'):
         super(NormalizedWeightedFMLayer, self).__init__()
+        self.feature_columns = feature_columns
         self.reduce_sum = reduce_sum
         torch.manual_seed(seed)
         self.sparse_feat_columns = list(filter(lambda x: isinstance(x, SparseFeat), feature_columns)) if len(
