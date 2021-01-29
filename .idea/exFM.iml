@@ -9,6 +9,7 @@
       <sourceFolder url="file://$MODULE_DIR$" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/config" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/process" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/layer" isTestSource="false" />
     </content>
     <orderEntry type="jdk" jdkName="Remote Python 3.6.5 (sftp://shaoqixiang@222.195.93.60:1641/data/shaoqixiang/anaconda3/envs/Pytorch/bin/python)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

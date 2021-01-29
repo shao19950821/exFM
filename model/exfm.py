@@ -14,8 +14,8 @@ from sklearn.metrics import *
 import torch.utils.data as Data
 import torch.nn as nn
 import logging
-from .fm import NormalizedWeightedFMLayer
-from .linear import NormalizedWeightedLinearLayer
+from layer.fmLayer import NormalizedWeightedFMLayer
+from layer.linearLayer import NormalizedWeightedLinearLayer
 from process.processUtils import slice_arrays
 from tqdm import tqdm
 import time
@@ -25,21 +25,35 @@ class exFM(nn.Module):
     def __init__(self, feature_columns, feature_index, init_std=0.0001, net_learning_rate=1e-3,
                  alpha_init_mean=0.5, alpha_init_radius=0.001, beta_init_mean=0.5, beta_init_radius=0.001,
                  activation='tanh', selected_pairs=None,
-                 c=0.0005, mu=0.8, structure_learing_rate=1e-3, reduce_sum=True, seed=1024, device='cpu'):
+                 c=0.0005, mu=0.8, structure_learing_rate=1e-3, seed=1024, device='cpu',
+                 structure_period=True):
         super(exFM, self).__init__()
         self.feature_index = feature_index
         self.device = device
-        self.linear = NormalizedWeightedLinearLayer(feature_columns=feature_columns, feature_index=feature_index,
-                                                    init_std=init_std, alpha_init_mean=alpha_init_mean,
-                                                    alpha_init_radius=alpha_init_radius,
-                                                    alpha_activation=activation,
-                                                    device=device)
-        self.fm = NormalizedWeightedFMLayer(feature_columns=feature_columns, feature_index=feature_index,
-                                            init_std=init_std, beta_init_mean=beta_init_mean,
-                                            beta_init_radius=beta_init_radius,
-                                            beta_activation=activation, selected_pairs=selected_pairs,
-                                            reduce_sum=reduce_sum, seed=seed,
-                                            device=device)
+        if (structure_period):
+            self.linear = NormalizedWeightedLinearLayer(feature_columns=feature_columns, feature_index=feature_index,
+                                                        init_std=init_std, alpha_init_mean=alpha_init_mean,
+                                                        alpha_init_radius=alpha_init_radius,
+                                                        alpha_activation=activation,
+                                                        device=device)
+            self.fm = NormalizedWeightedFMLayer(feature_columns=feature_columns, feature_index=feature_index,
+                                                init_std=init_std, beta_init_mean=beta_init_mean,
+                                                beta_init_radius=beta_init_radius,
+                                                beta_activation=activation, selected_pairs=selected_pairs,
+                                                seed=seed,
+                                                device=device)
+        else:
+            self.linear = NormalizedWeightedLinearLayer(feature_columns=feature_columns, feature_index=feature_index,
+                                                        init_std=init_std, alpha_init_mean=alpha_init_mean,
+                                                        alpha_init_radius=alpha_init_radius,
+                                                        alpha_activation=activation,
+                                                        device=device)
+            self.fm = NormalizedWeightedFMLayer(feature_columns=feature_columns, feature_index=feature_index,
+                                                init_std=init_std, beta_init_mean=beta_init_mean,
+                                                beta_init_radius=beta_init_radius,
+                                                beta_activation=activation, selected_pairs=selected_pairs,
+                                                seed=seed,
+                                                device=device)
         self.net_lr = net_learning_rate  # 学习率
         self.structure_lr = structure_learing_rate  # 学习率
         self.c = c  # gRDA c
@@ -59,12 +73,12 @@ class exFM(nn.Module):
         self.structure_optim = self.get_structure_optim(structure_params)
         self.net_optim = self.get_net_optim(net_params)
         self.loss_func = F.binary_cross_entropy
-        self.metrics = self._get_metrics(["binary_crossentropy", "auc"])
+        self.metrics = self.get_metrics(["binary_crossentropy", "auc"])
 
     def get_net_optim(self, learnable_params):
         logging.info("init net optimizer, lr = {}".format(self.net_lr))
         optimizer = optim.Adam(learnable_params, lr=float(self.net_lr))
-        logging.info("init structure optimizer finish.")
+        logging.info("init net optimizer finish.")
         return optimizer
 
     def get_structure_optim(self, learnable_params):
@@ -73,7 +87,7 @@ class exFM(nn.Module):
         logging.info("init structure optimizer finish.")
         return optimizer
 
-    def _get_metrics(self, metrics, set_eps=False):
+    def get_metrics(self, metrics, set_eps=False):
         metrics_ = {}
         if metrics:
             for metric in metrics:
@@ -161,7 +175,6 @@ class exFM(nn.Module):
                 t.close()
                 raise
             t.close()
-
             # Add epoch_logs
             epoch_logs["loss"] = total_loss_epoch / sample_num
             for name, result in train_result.items():

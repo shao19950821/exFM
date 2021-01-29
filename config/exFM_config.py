@@ -5,16 +5,17 @@
 '''
 
 exFM_config = {
-    'general':{
-        'batch_size':256,
-        'epochs':1,
-        'validation_split':0.2
-    },
-    'exFm': {
+    'general': {
+        'batch_size': 256,
+        'epochs': 1,
+        'validation_split': 0.1,
         'learning_rate': 1e-3,
     },
+    'exFM': {
+        'mask_threshold': 0.,
+    },
     'gRDA': {
-        'c': 0.0005,
+        'c': 0.05,
         'mu': 0.8,
         'learning_rate': 1e-3,
     }

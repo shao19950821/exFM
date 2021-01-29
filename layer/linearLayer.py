@@ -7,12 +7,14 @@
 import torch
 import torch.nn as nn
 from process.feature import *
-from process.processUtils import create_embedding_matrix,create_structure_param
+from process.processUtils import create_embedding_matrix, create_structure_param
 
 
 class LinearLayer(nn.Module):
-    def __init__(self, feature_columns, feature_index, init_std=0.0001, device='cpu'):
+    def __init__(self, feature_columns, feature_index,init_std=0.0001, device='cpu',linear_mask_idx = []):
         super(LinearLayer, self).__init__()
+        if len(linear_mask_idx) > 0:
+            feature_columns =self.mask_feature(feature_columns,linear_mask_idx)
         self.feature_index = feature_index
         self.sparse_feat_columns = list(filter(lambda x: isinstance(x, SparseFeat), feature_columns)) if len(
             feature_columns) else []
@@ -26,13 +28,20 @@ class LinearLayer(nn.Module):
             self.weight = nn.Parameter(torch.Tensor(sum(fc.dimension for fc in self.dense_feat_columns), 1).to(device))
             torch.nn.init.normal_(self.weight, mean=0, std=init_std)
 
+    def mask_feature(self,feature_columns,linear_mask_idx):
+        filter_feature_columns = []
+        for idx,feature in enumerate(feature_columns):
+            if idx not in linear_mask_idx:
+                filter_feature_columns.append(feature)
+        return filter_feature_columns
+
     def forward(self, X):
         sparse_embedding_list = [self.embedding_dict[feat.embedding_name](
             X[:, self.feature_index[feat.name][0]:self.feature_index[feat.name][1]].long()) for feat in
             self.sparse_feat_columns]
 
         dense_value_list = [X[:, self.feature_index[feat.name][0]:self.feature_index[feat.name][1]] for feat in
-                            self.dense_feature_columns]
+                            self.dense_feat_columns]
 
         if len(sparse_embedding_list) > 0 and len(dense_value_list) > 0:
             linear_sparse_logit = torch.sum(
