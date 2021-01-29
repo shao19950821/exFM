@@ -148,8 +148,9 @@ class exFM(nn.Module):
         # Train
         print("Train on {0} samples, validate on {1} samples, {2} steps per epoch".format(
             len(train_tensor_data), len(val_y), steps_per_epoch))
+
         for epoch in range(initial_epoch, epochs):
-            start_time = time.time()
+            epoch_start_time = time.time()
             epoch_logs = {}
             total_loss_epoch = 0
             train_result = {}
@@ -185,7 +186,7 @@ class exFM(nn.Module):
                 for name, result in eval_result.items():
                     epoch_logs["val_" + name] = result
 
-            epoch_time = int(time.time() - start_time)
+            epoch_time = int(time.time() - epoch_start_time)
             print('Epoch {0}/{1}'.format(epoch + 1, epochs))
 
             eval_str = "{0}s - loss: {1: .4f}".format(
