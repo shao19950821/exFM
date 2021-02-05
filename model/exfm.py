@@ -25,35 +25,22 @@ class exFM(nn.Module):
     def __init__(self, feature_columns, feature_index, init_std=0.0001, net_learning_rate=1e-3,
                  alpha_init_mean=0.5, alpha_init_radius=0.001, beta_init_mean=0.5, beta_init_radius=0.001,
                  activation='tanh', selected_pairs=None,
-                 c=0.0005, mu=0.8, structure_learing_rate=1e-3, seed=1024, device='cpu',
-                 structure_period=True):
+                 c=0.0005, mu=0.8, structure_learing_rate=1e-3, seed=1024, device='cpu'):
         super(exFM, self).__init__()
         self.feature_index = feature_index
         self.device = device
-        if (structure_period):
-            self.linear = NormalizedWeightedLinearLayer(feature_columns=feature_columns, feature_index=feature_index,
-                                                        init_std=init_std, alpha_init_mean=alpha_init_mean,
-                                                        alpha_init_radius=alpha_init_radius,
-                                                        alpha_activation=activation,
-                                                        device=device)
-            self.fm = NormalizedWeightedFMLayer(feature_columns=feature_columns, feature_index=feature_index,
-                                                init_std=init_std, beta_init_mean=beta_init_mean,
-                                                beta_init_radius=beta_init_radius,
-                                                beta_activation=activation, selected_pairs=selected_pairs,
-                                                seed=seed,
-                                                device=device)
-        else:
-            self.linear = NormalizedWeightedLinearLayer(feature_columns=feature_columns, feature_index=feature_index,
-                                                        init_std=init_std, alpha_init_mean=alpha_init_mean,
-                                                        alpha_init_radius=alpha_init_radius,
-                                                        alpha_activation=activation,
-                                                        device=device)
-            self.fm = NormalizedWeightedFMLayer(feature_columns=feature_columns, feature_index=feature_index,
-                                                init_std=init_std, beta_init_mean=beta_init_mean,
-                                                beta_init_radius=beta_init_radius,
-                                                beta_activation=activation, selected_pairs=selected_pairs,
-                                                seed=seed,
-                                                device=device)
+        self.linear = NormalizedWeightedLinearLayer(feature_columns=feature_columns, feature_index=feature_index,
+                                                    init_std=init_std, alpha_init_mean=alpha_init_mean,
+                                                    alpha_init_radius=alpha_init_radius,
+                                                    alpha_activation=activation,
+                                                    device=device)
+        self.fm = NormalizedWeightedFMLayer(feature_columns=feature_columns, feature_index=feature_index,
+                                            init_std=init_std, beta_init_mean=beta_init_mean,
+                                            beta_init_radius=beta_init_radius,
+                                            beta_activation=activation, selected_pairs=selected_pairs,
+                                            seed=seed,
+                                            device=device)
+
         self.net_lr = net_learning_rate  # 学习率
         self.structure_lr = structure_learing_rate  # 学习率
         self.c = c  # gRDA c

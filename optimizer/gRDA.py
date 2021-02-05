@@ -68,15 +68,12 @@ class gRDA(Optimizer):
                 if p.grad is None:
                     continue
                 d_p = p.grad.data
-
                 param_state = self.state[p]
-
                 if 'iter_num' not in param_state:
                     iter_num = param_state['iter_num'] = torch.zeros(1)
                     accumulator = param_state['accumulator'] = torch.FloatTensor(p.shape).to(p.device)
                     l1_accumulation = param_state['l1_accumulation'] = torch.zeros(1)
                     accumulator.data = p.clone()
-
                 else:
                     iter_num = param_state['iter_num']
                     accumulator = param_state['accumulator']
@@ -88,5 +85,4 @@ class gRDA(Optimizer):
                 l1_accumulation += l1_diff
                 new_a_l1 = torch.abs(accumulator.data) - l1_accumulation.to(p.device)
                 p.data = torch.sign(accumulator.data) * new_a_l1.clamp(min=0)
-
         return loss

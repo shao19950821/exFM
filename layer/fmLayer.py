@@ -24,6 +24,7 @@ class FactorizationMachineLayer(nn.Module):
         # embedding 矩阵
         self.embedding_dict = create_embedding_matrix(feature_columns, init_std, sparse=False,
                                                       device=device)
+        self.device = device
         # dense 部分对应权重
         if len(self.dense_feat_columns) > 0:
             self.weight = nn.Parameter(torch.Tensor(sum(fc.dimension for fc in self.dense_feat_columns), 1).to(device))
@@ -51,7 +52,7 @@ class FactorizationMachineLayer(nn.Module):
         ix = square_of_sum - sum_of_square
         ix = torch.sum(ix, dim=1, keepdim=True)
         if len(self.pair_mask_idx) > 0:
-            mask_feat_i,mask_feat_j = torch.index_select(self.pair_indexes, 1, torch.LongTensor(self.pair_mask_idx))
+            mask_feat_i,mask_feat_j = torch.index_select(self.pair_indexes, 1, torch.LongTensor(self.pair_mask_idx).to(self.device))
             mask_embed_i = torch.index_select(embed_matrix, 1, mask_feat_i)
             mask_embed_j = torch.index_select(embed_matrix, 1, mask_feat_j)
             mask_embed_product = torch.sum(torch.mul(mask_embed_i, mask_embed_j), dim=2)
