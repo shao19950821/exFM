@@ -9,7 +9,7 @@ import logging
 import torch
 import torch.nn as nn
 from itertools import combinations
-from .feature import SparseFeat, DenseFeat
+from .feature import SparseFeat, DenseFeat, DenseBucketFeat
 from collections import OrderedDict
 
 
@@ -18,10 +18,15 @@ def create_embedding_matrix(feature_columns, init_std=0.0001, linear=False, spar
     sparse_feature_columns = list(
         filter(lambda x: isinstance(x, SparseFeat), feature_columns)) if len(feature_columns) else []
 
+    dense_bucket_feature_columns = list(
+        filter(lambda x: isinstance(x, DenseBucketFeat), feature_columns)) if len(feature_columns) else []
+
+    embedding_feature_list = sparse_feature_columns + dense_bucket_feature_columns
+
     embedding_dict = nn.ModuleDict(
         {feat.embedding_name: nn.Embedding(feat.vocabulary_size, feat.embedding_dim if not linear else 1, sparse=sparse)
          for feat in
-         sparse_feature_columns}
+         embedding_feature_list}
     )
 
     for tensor in embedding_dict.values():
@@ -37,6 +42,7 @@ def create_structure_param(length, init_mean, init_radius, device='cpu'):
             init_mean + init_radius).to(device))
     structure_param.requires_grad = True
     return structure_param
+
 
 def get_feature_names(feature_columns):
     features = build_input_features(feature_columns)
@@ -58,6 +64,9 @@ def build_input_features(feature_columns):
         elif isinstance(feat, DenseFeat):
             features[feat_name] = (start, start + feat.dimension)
             start += feat.dimension
+        elif isinstance(feat, DenseBucketFeat):
+            features[feat_name] = (start, start + 1)
+            start += 1
         else:
             raise TypeError("Invalid feature column type,got", type(feat))
     return features

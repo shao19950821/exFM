@@ -8,8 +8,9 @@ import torch
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from process.processUtils import build_input_features
-from process.feature import SparseFeat, DenseFeat
+from process.feature import SparseFeat, DenseFeat, DenseBucketFeat
 from config.exFM_config import exFM_config as configs
+import pickle as pkl
 
 
 def train_criteo(model):
@@ -20,27 +21,19 @@ def train_criteo(model):
     names = ['label', 'I1', 'I2', 'I3', 'I4', 'I5', 'I6', 'I7', 'I8', 'I9', 'I10', 'I11', 'I12', 'I13', 'C1',
              'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16',
              'C17', 'C18', 'C19', 'C20', 'C21', 'C22', 'C23', 'C24', 'C25', 'C26']
+    feat_size = pkl.load(open('../criteo/bucket/feature_size.pkl', 'rb'))
     if configs['general']['data'] == -1:
-        data_train = pd.read_csv('../criteo/train_sample.csv', sep=',', )  # 服务器上读取数据的方法
-        data_test = pd.read_csv('../criteo/test.csv', sep=',')  # 服务器上读取数据的方法
+        data_train = pd.read_csv('../criteo/train_bucket.csv', sep=',', dtype=int)  # 服务器上读取数据的方法
+        data_test = pd.read_csv('../criteo/test_bucket.csv', sep=',',dtype=int)  # 服务器上读取数据的方法
     else:
-        data_train = pd.read_csv('../criteo/train.csv', nrows=configs['general']['data'], sep=',',
-                                 )  # 服务器上读取数据的方法
-        data_test = pd.read_csv('../criteo/test.csv', nrows=configs['general']['data'], sep=','
-                                )  # 服务器上读取数据的方法
+        data_train = pd.read_csv('../criteo/train_bucket.csv', nrows=configs['general']['data'], sep=',',
+                                 dtype=int)  # 服务器上读取数据的方法
+        data_test = pd.read_csv('../criteo/test_bucket.csv', nrows=configs['general']['data'], sep=',',
+                                dtype=int)  # 服务器上读取数据的方法
     sparse_features = ['C' + str(i) for i in range(1, 27)]  # 离散型特征
     dense_features = ['I' + str(i) for i in range(1, 14)]  # 连续型特征
-    data = pd.concat([data_train, data_test])
-    data[sparse_features] = data[sparse_features].fillna(-1, )  # 填充缺失值
-    data[dense_features] = data[dense_features].fillna(0, )  # 填充缺失值
-    for feat in sparse_features:
-        lbe = LabelEncoder()  # LabelEncoder 对离散数据进行标签化 字典序列 如['dog','cat','mouse'] 变为[1,0,2]
-        data[feat] = pd.to_numeric(data[feat])
-        data[feat] = lbe.fit_transform(data[feat])
-    mms = MinMaxScaler(feature_range=(0, 1))  # 将连续型变量放缩到(0,1)范围
-    data[dense_features] = mms.fit_transform(data[dense_features])
-    fixlen_feature_columns = [SparseFeat(feat, data[feat].nunique())
-                              for feat in sparse_features] + [DenseFeat(feat, 1, )
+    fixlen_feature_columns = [SparseFeat(feat, feat_size[feat], 20)
+                              for feat in sparse_features] + [DenseBucketFeat(feat, feat_size[feat], 20)
                                                               for feat in dense_features]
     device = 'cpu'
     use_cuda = True
@@ -48,7 +41,5 @@ def train_criteo(model):
         print('cuda ready...')
         device = 'cuda:3'
     feature_index = build_input_features(fixlen_feature_columns)
-    data_train = data[:data_train.shape[0]]
-    data_test = data[data_train.shape[0]:]
     run_criteo(feature_columns=fixlen_feature_columns, feature_index=feature_index, data_train=data_train,
                data_test=data_test, device=device)

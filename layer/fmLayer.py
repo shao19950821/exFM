@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from process.processUtils import build_input_features, create_embedding_matrix, create_structure_param, \
     generate_pair_index
-from process.feature import SparseFeat, DenseFeat
+from process.feature import SparseFeat, DenseFeat, DenseBucketFeat
 
 
 class FactorizationMachineLayer(nn.Module):
@@ -16,19 +16,12 @@ class FactorizationMachineLayer(nn.Module):
         super(FactorizationMachineLayer, self).__init__()
         torch.manual_seed(seed)
         self.pair_mask_idx = pair_mask_idx
-        self.sparse_feat_columns = list(filter(lambda x: isinstance(x, SparseFeat), feature_columns)) if len(
-            feature_columns) else []
-        self.dense_feat_columns = list(filter(lambda x: isinstance(x, DenseFeat), feature_columns)) if len(
-            feature_columns) else []
+        self.feature_columns = feature_columns
         self.feature_index = build_input_features(feature_columns)
         # embedding 矩阵
         self.embedding_dict = create_embedding_matrix(feature_columns, init_std, sparse=False,
                                                       device=device)
         self.device = device
-        # dense 部分对应权重
-        if len(self.dense_feat_columns) > 0:
-            self.weight = nn.Parameter(torch.Tensor(sum(fc.dimension for fc in self.dense_feat_columns), 1).to(device))
-            torch.nn.init.normal_(self.weight, mean=0, std=init_std)
         if len(self.pair_mask_idx) > 0:
             self.register_buffer('pair_indexes',
                                  torch.tensor(generate_pair_index(len(self.sparse_feat_columns) + len(self.dense_feat_columns), 2)).to(device))
@@ -36,17 +29,10 @@ class FactorizationMachineLayer(nn.Module):
 
 
     def forward(self, X):
-        sparse_embedding_list = [self.embedding_dict[feat.embedding_name](
+        embedding_list = [self.embedding_dict[feat.embedding_name](
             X[:, self.feature_index[feat.name][0]:self.feature_index[feat.name][1]].long()) for feat in
-            self.sparse_feat_columns]
-        sparse_embedding_tensor = torch.cat(sparse_embedding_list, dim=1)
-
-        dense_value_list = [X[:, self.feature_index[feat.name][0]:self.feature_index[feat.name][1]] for feat in
-                            self.dense_feat_columns]
-
-        weight_dense = torch.cat(dense_value_list, dim=1).unsqueeze(2) * (self.weight)
-        weight_dense_padding_tensor = weight_dense.expand(weight_dense.shape[0], weight_dense.shape[1], 4)
-        embed_matrix = torch.cat([sparse_embedding_tensor, weight_dense_padding_tensor], dim=1)
+            self.feature_columns]
+        embed_matrix = torch.cat(embedding_list, dim=1)
         square_of_sum = torch.sum(embed_matrix, dim=1) ** 2
         sum_of_square = torch.sum(embed_matrix ** 2, dim=1)
         ix = square_of_sum - sum_of_square
@@ -68,12 +54,8 @@ class NormalizedWeightedFMLayer(torch.nn.Module):
         super(NormalizedWeightedFMLayer, self).__init__()
         self.feature_columns = feature_columns
         torch.manual_seed(seed)
-        self.sparse_feat_columns = list(filter(lambda x: isinstance(x, SparseFeat), feature_columns)) if len(
-            feature_columns) else []
-        self.dense_feat_columns = list(filter(lambda x: isinstance(x, DenseFeat), feature_columns)) if len(
-            feature_columns) else []
         self.feature_index = feature_index
-        self.inputdim = len(self.sparse_feat_columns) + len(self.dense_feat_columns)
+        self.inputdim = len(self.feature_columns)
         self.register_buffer('pair_indexes',
                              torch.tensor(generate_pair_index(self.inputdim, 2, selected_pairs)).to(device))
         interaction_pair_number = len(self.pair_indexes[0])
@@ -82,10 +64,6 @@ class NormalizedWeightedFMLayer(torch.nn.Module):
         self.embedding_dict = create_embedding_matrix(feature_columns, init_std, sparse=False,
                                                       device=device)
 
-        if len(self.dense_feat_columns) > 0:
-            self.weight = nn.Parameter(torch.Tensor(sum(fc.dimension for fc in self.dense_feat_columns), 1).to(device))
-            torch.nn.init.normal_(self.weight, mean=0, std=init_std)
-
         self.beta = create_structure_param(
             interaction_pair_number, beta_init_mean,
             beta_init_radius, device)
@@ -93,17 +71,10 @@ class NormalizedWeightedFMLayer(torch.nn.Module):
         self.batch_norm = torch.nn.BatchNorm1d(interaction_pair_number, affine=False, momentum=0.01, eps=1e-3)
 
     def forward(self, X):
-        sparse_embedding_list = [self.embedding_dict[feat.embedding_name](
+        embedding_list = [self.embedding_dict[feat.embedding_name](
             X[:, self.feature_index[feat.name][0]:self.feature_index[feat.name][1]].long()) for feat in
-            self.sparse_feat_columns]
-        sparse_embedding_tensor = torch.cat(sparse_embedding_list, dim=1)
-
-        dense_value_list = [X[:, self.feature_index[feat.name][0]:self.feature_index[feat.name][1]] for feat in
-                            self.dense_feat_columns]
-
-        weight_dense = torch.cat(dense_value_list, dim=1).unsqueeze(2) * (self.weight)
-        weight_dense_padding_tensor = weight_dense.expand(weight_dense.shape[0], weight_dense.shape[1], 4)
-        embed_matrix = torch.cat([sparse_embedding_tensor, weight_dense_padding_tensor], dim=1)
+            self.feature_columns]
+        embed_matrix = torch.cat(embedding_list, dim=1)
         feat_i, feat_j = self.pair_indexes
         embed_i = torch.index_select(embed_matrix, 1, feat_i)
         embed_j = torch.index_select(embed_matrix, 1, feat_j)
