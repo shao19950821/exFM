@@ -22,11 +22,12 @@ class FactorizationMachineLayer(nn.Module):
         self.embedding_dict = create_embedding_matrix(feature_columns, init_std, sparse=False,
                                                       device=device)
         self.device = device
+        self.inputdim = len(self.feature_columns)
         if len(self.pair_mask_idx) > 0:
             self.register_buffer('pair_indexes',
-                                 torch.tensor(generate_pair_index(len(self.sparse_feat_columns) + len(self.dense_feat_columns), 2)).to(device))
+                                 torch.tensor(
+                                     generate_pair_index(self.inputdim, 2)).to(device))
             self.pair_mask_idx = pair_mask_idx
-
 
     def forward(self, X):
         embedding_list = [self.embedding_dict[feat.embedding_name](
@@ -38,13 +39,15 @@ class FactorizationMachineLayer(nn.Module):
         ix = square_of_sum - sum_of_square
         ix = torch.sum(ix, dim=1, keepdim=True)
         if len(self.pair_mask_idx) > 0:
-            mask_feat_i,mask_feat_j = torch.index_select(self.pair_indexes, 1, torch.LongTensor(self.pair_mask_idx).to(self.device))
+            mask_feat_i, mask_feat_j = torch.index_select(self.pair_indexes, 1,
+                                                          torch.LongTensor(self.pair_mask_idx).to(self.device))
             mask_embed_i = torch.index_select(embed_matrix, 1, mask_feat_i)
             mask_embed_j = torch.index_select(embed_matrix, 1, mask_feat_j)
             mask_embed_product = torch.sum(torch.mul(mask_embed_i, mask_embed_j), dim=2)
             return 0.5 * ix - torch.sum(mask_embed_product, dim=1, keepdim=True)
         else:
             return 0.5 * ix
+
 
 class NormalizedWeightedFMLayer(torch.nn.Module):
 

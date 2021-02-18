@@ -6,7 +6,7 @@
 
 exFM_config = {
     'general': {
-        'batch_size': 256,
+        'batch_size': 2000,
         'data': -1,  # -1 代表全部读取
         'epochs': 1,
         'validation_split': 0.1,

@@ -6,12 +6,12 @@
 import math
 import time
 from model.fm import FM
-from model.exfm import exFM
+from model.alphaBetaFM import AlphaBetaFM
 from config.exFM_config import exFM_config as configs
 from sklearn.metrics import log_loss, roc_auc_score
 from process.processUtils import *
 
-filename = 'log-c' + str(configs['gRDA']['c']) + '.log'
+filename = 'maskFM-batchsize'+ str(configs['general']['batch_size']) +'-c-' + str(configs['gRDA']['c']) + '.log'
 logging.basicConfig(filename=filename, level=logging.INFO, filemode='w')
 
 
@@ -22,7 +22,7 @@ def run_criteo(feature_columns, feature_index, data_train, data_test, device='cp
     test_model_input = {name: data_test[name] for name in feature_names}
     logging.info("data num:{}".format(configs['general']['data']))
     logging.info("epoch num:{}".format(configs['general']['epochs']))
-    period1_model = exFM(feature_columns=feature_columns, feature_index=feature_index,
+    period1_model = AlphaBetaFM(feature_columns=feature_columns, feature_index=feature_index,
                          net_learning_rate=configs['general']['learning_rate'], c=configs['gRDA']['c'],
                          mu=configs['gRDA']['mu'], structure_learing_rate=configs['gRDA']['learning_rate'],
                          device=device)  # 初始化模型

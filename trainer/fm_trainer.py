@@ -9,7 +9,7 @@ from config.exFM_config import exFM_config as configs
 from sklearn.metrics import log_loss, roc_auc_score
 from process.processUtils import *
 
-filename = 'log-fm.log'
+filename = 'fm-batchsize' + str(configs['general']['batch_size']) + '.log'
 logging.basicConfig(filename=filename, level=logging.INFO, filemode='w')
 
 

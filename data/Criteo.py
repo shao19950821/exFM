@@ -11,13 +11,15 @@ import pickle as pkl
 from tqdm import tqdm
 import numpy as np
 
-pd.set_option('precision', 20)
 
 dense_features = ['I' + str(i) for i in range(1, 14)]  # 连续型特征
 sparse_features = ['C' + str(i) for i in range(1, 27)]  # 离散型特征
 names = [' ', 'label', 'I1', 'I2', 'I3', 'I4', 'I5', 'I6', 'I7', 'I8', 'I9', 'I10', 'I11', 'I12', 'I13', 'C1',
          'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16',
          'C17', 'C18', 'C19', 'C20', 'C21', 'C22', 'C23', 'C24', 'C25', 'C26']
+test_names = ['label', 'I1', 'I2', 'I3', 'I4', 'I5', 'I6', 'I7', 'I8', 'I9', 'I10', 'I11', 'I12', 'I13', 'C1',
+              'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C14', 'C15', 'C16',
+              'C17', 'C18', 'C19', 'C20', 'C21', 'C22', 'C23', 'C24', 'C25', 'C26']
 
 
 class CriteoProcessor(object):
@@ -107,11 +109,11 @@ class CriteoProcessor(object):
         cat_feat = pkl.load(open(os.path.join(self.bucket_dir, 'sparse_feature_bucket.pkl'), 'rb'))
         i = 0
         writer = csv.writer(bucket_file)
-        test_data = pd.read_csv('../../criteo/test_10000.csv', sep=',')  # 舍弃unnamed
+        test_data = pd.read_csv('../../criteo/test.csv', sep=',')  # 舍弃unnamed
         for index in tqdm(range(len(test_data))):
             row = test_data.iloc[index]
             if i == 0:
-                writer.writerow(names)
+                writer.writerow(test_names)
             for dense_index, dense in enumerate(dense_features):
                 value = row[dense]
                 row[dense] = len(
@@ -126,7 +128,7 @@ class CriteoProcessor(object):
             i += 1
 
     def load_raw_data(self, filepath):
-        data = pd.read_csv(filepath, sep=',', index_col=0)  # 舍弃unnamed
+        data = pd.read_csv(filepath, sep=',')  # 舍弃unnamed
         return data
 
     def negative_down_sampling(self):
@@ -161,7 +163,7 @@ class CriteoProcessor(object):
 
 
 if __name__ == '__main__':
-    dataProcessor = CriteoProcessor('../../criteo/train_100000.csv')
+    dataProcessor = CriteoProcessor('../../criteo/train.csv')
     dataProcessor.negative_down_sampling()
     dataProcessor.make_feat_map()
     dataProcessor.bucket()

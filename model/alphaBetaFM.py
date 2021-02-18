@@ -1,37 +1,50 @@
 '''
 @author: natsu初夏倾城
-@time: 2021/1/28 12:49 下午
+@time: 2021/1/20 10:26 上午
 @desc:
 '''
-
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torch.optim as optim
+from optimizer.gRDA import gRDA
 from sklearn.metrics import *
 import torch.utils.data as Data
 import logging
-from layer.fmLayer import FactorizationMachineLayer
-from layer.linearLayer import LinearLayer
+from layer.fmLayer import NormalizedWeightedFMLayer
+from layer.linearLayer import NormalizedWeightedLinearLayer
 from process.processUtils import slice_arrays
 from tqdm import tqdm
 from .baseModel import BaseModel
 import time
 
 
-class FM(BaseModel):
-    def __init__(self, feature_columns, feature_index, init_std=0.0001, learning_rate=1e-3,
-                 seed=1024, device='cpu', linear_mask_idx=[], pair_mask_idx=[]):
-        super(FM, self).__init__()
+class AlphaBetaFM(BaseModel):
+    def __init__(self, feature_columns, feature_index, init_std=0.0001, net_learning_rate=1e-3,
+                 alpha_init_mean=0.5, alpha_init_radius=0.001, beta_init_mean=0.5, beta_init_radius=0.001,
+                 activation='tanh', selected_pairs=None,
+                 c=0.0005, mu=0.8, structure_learing_rate=1e-3, seed=1024, device='cpu'):
+        super(AlphaBetaFM, self).__init__()
         self.feature_index = feature_index
         self.device = device
-        self.linear = LinearLayer(feature_columns=feature_columns, feature_index=feature_index, init_std=init_std,
-                                  device=device, linear_mask_idx=linear_mask_idx)
-        self.fm = FactorizationMachineLayer(feature_columns=feature_columns, init_std=init_std, seed=seed,
-                                            device=device, pair_mask_idx=pair_mask_idx)
-        self.lr = learning_rate
+        self.linear = NormalizedWeightedLinearLayer(feature_columns=feature_columns, feature_index=feature_index,
+                                                    init_std=init_std, alpha_init_mean=alpha_init_mean,
+                                                    alpha_init_radius=alpha_init_radius,
+                                                    alpha_activation=activation,
+                                                    device=device)
+        self.fm = NormalizedWeightedFMLayer(feature_columns=feature_columns, feature_index=feature_index,
+                                            init_std=init_std, beta_init_mean=beta_init_mean,
+                                            beta_init_radius=beta_init_radius,
+                                            beta_activation=activation, selected_pairs=selected_pairs,
+                                            seed=seed,
+                                            device=device)
+
+        self.net_lr = net_learning_rate  # 学习率
+        self.structure_lr = structure_learing_rate  # 学习率
+        self.c = c  # gRDA c
+        self.mu = mu  # gRDA mu
 
     def forward(self, x):
         linear_out = self.linear(x)
@@ -41,14 +54,24 @@ class FM(BaseModel):
 
     def before_train(self):
         self.metrics_names = ["loss"]
-        self.net_optim = self.get_net_optim(self.parameters())
+        all_parameters = self.parameters()
+        structure_params = set([self.linear.alpha, self.fm.beta])
+        net_params = [i for i in all_parameters if i not in structure_params]
+        self.structure_optim = self.get_structure_optim(structure_params)
+        self.net_optim = self.get_net_optim(net_params)
         self.loss_func = F.binary_cross_entropy
         self.metrics = self.get_metrics(["binary_crossentropy", "auc"])
 
     def get_net_optim(self, learnable_params):
-        logging.info("init net optimizer, lr = {}".format(self.lr))
-        optimizer = optim.Adam(learnable_params, lr=float(self.lr))
+        logging.info("init net optimizer, lr = {}".format(self.net_lr))
+        optimizer = optim.Adam(learnable_params, lr=float(self.net_lr))
         logging.info("init net optimizer finish.")
+        return optimizer
+
+    def get_structure_optim(self, learnable_params):
+        logging.info("init structure optimizer, lr = {}, c = {}, mu = {}".format(self.structure_lr, self.c, self.mu))
+        optimizer = gRDA(learnable_params, lr=float(self.structure_lr), c=self.c, mu=self.mu)
+        logging.info("init structure optimizer finish.")
         return optimizer
 
     def get_metrics(self, metrics, set_eps=False):
@@ -105,14 +128,16 @@ class FM(BaseModel):
         model = self.train()
         loss_func = self.loss_func
         net_optim = self.net_optim
+        structure_optim = self.structure_optim
         sample_num = len(train_tensor_data)
         steps_per_epoch = (sample_num - 1) // batch_size + 1
 
         # Train
         print("Train on {0} samples, validate on {1} samples, {2} steps per epoch".format(
             len(train_tensor_data), len(val_y), steps_per_epoch))
+
         for epoch in range(initial_epoch, epochs):
-            start_time = time.time()
+            epoch_start_time = time.time()
             epoch_logs = {}
             total_loss_epoch = 0
             train_result = {}
@@ -123,10 +148,12 @@ class FM(BaseModel):
                         y = y_train.to(self.device).float()
                         y_pred = model(x).squeeze()
                         net_optim.zero_grad()
+                        structure_optim.zero_grad()
                         loss = loss_func(y_pred, y.squeeze(), reduction='sum')
                         total_loss_epoch += loss.item()
                         loss.backward()
                         net_optim.step()
+                        structure_optim.step()
                         for name, metric_fun in self.metrics.items():
                             if name not in train_result:
                                 train_result[name] = []
@@ -146,7 +173,7 @@ class FM(BaseModel):
                 for name, result in eval_result.items():
                     epoch_logs["val_" + name] = result
 
-            epoch_time = int(time.time() - start_time)
+            epoch_time = int(time.time() - epoch_start_time)
             print('Epoch {0}/{1}'.format(epoch + 1, epochs))
 
             eval_str = "{0}s - loss: {1: .4f}".format(
@@ -161,3 +188,37 @@ class FM(BaseModel):
                     eval_str += " - " + "val_" + name + \
                                 ": {0: .4f}".format(epoch_logs["val_" + name])
             print(eval_str)
+
+
+    def get_linearlayer_feature_interaction_score(self):
+        linear_interaction_score = {}
+        for idx, feature in enumerate(self.linear.feature_columns):
+            name = feature.name
+            score = self.linear.alpha[idx].item()
+            logging.info("feature {} => importance score {}".format(name, score))
+            linear_interaction_score[name] = score
+        return linear_interaction_score
+
+    def get_fmlayer_feature_interaction_score(self):
+        feature_interaction_score = {}
+        feat_i, feat_j = self.fm.pair_indexes.tolist()
+        feat_name_i = [self.fm.feature_columns[i].name for i in feat_i]
+        feat_name_j = [self.fm.feature_columns[j].name for j in feat_j]
+        for idx, pair in enumerate(zip(feat_name_i, feat_name_j)):
+            score = self.fm.beta[idx].item()
+            logging.info("pair {} => importance score {}".format(pair, score))
+            feature_interaction_score[pair] = score
+        return feature_interaction_score
+
+    def save(self):
+        print("save model structure param")
+        state = {'alpha': self.linear.alpha,
+                 'beta': self.fm.beta,
+                 }
+        torch.save(state, 'paramc-' + str(self.c) + '.pth')
+
+    # 训练后输出权重
+    def afterTrain(self):
+        self.get_linearlayer_feature_interaction_score()
+        self.get_fmlayer_feature_interaction_score()
+        self.save()
